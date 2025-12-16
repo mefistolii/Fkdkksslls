@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Рецензент курсовых работ</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        header {
+            background: linear-gradient(90deg, #4f46e5, #7c3aed);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        main {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            padding: 40px;
+        }
+
+        @media (max-width: 900px) {
+            main {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .upload-section, .result-section {
+            background: #f8fafc;
+            border-radius: 15px;
+            padding: 30px;
+            border: 2px dashed #cbd5e1;
+        }
+
+        .upload-section {
+            border-color: #4f46e5;
+        }
+
+        .upload-area {
+            text-align: center;
+            padding: 40px 20px;
+            border: 3px dashed #94a3b8;
+            border-radius: 12px;
+            margin: 20px 0;
+            transition: all 0.3s;
+            cursor: pointer;
+            background: white;
+        }
+
+        .upload-area:hover {
+            border-color: #4f46e5;
+            background: #f0f9ff;
+        }
+
+        .upload-icon {
+            font-size: 48px;
+            color: #4f46e5;
+            margin-bottom: 15px;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .file-info {
+            margin-top: 15px;
+            color: #64748b;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-top: 25px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 14px 28px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .analyze-btn {
+            background: linear-gradient(90deg, #10b981, #34d399);
+            color: white;
+            flex: 1;
+        }
+
+        .analyze-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(16, 185, 129, 0.3);
+        }
+
+        .analyze-btn:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .clear-btn {
+            background: #f1f5f9;
+            color: #475569;
+        }
+
+        .clear-btn:hover {
+            background: #e2e8f0;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #e2e8f0;
+            border-top-color: #4f46e5;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .result-section {
+            max-height: 700px;
+            overflow-y: auto;
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .score-badge {
+            background: linear-gradient(90deg, #f59e0b, #fbbf24);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+
+        .errors-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .error-item {
+            background: white;
+            border-left: 5px solid #ef4444;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+
+        .error-item.warning {
+            border-left-color: #f59e0b;
+        }
+
+        .error-item.success {
+            border-left-color: #10b981;
+        }
+
+        .error-category {
+            font-weight: bold;
+            color: #1e293b;
+            font-size: 1.1rem;
+            margin-bottom: 8px;
+        }
+
+        .error-text {
+            color: #475569;
+            line-height: 1.6;
+            margin-bottom: 12px;
+        }
+
+        .error-quote {
+            background: #f8fafc;
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 3px solid #cbd5e1;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            margin: 10px 0;
+            color: #475569;
+        }
+
+        .recommendation {
+            background: #f0f9ff;
+            padding: 12px;
+            border-radius: 8px;
+            color: #0369a1;
+            font-size: 0.95rem;
+        }
+
+        footer {
+            text-align: center;
+            padding: 25px;
+            background: #f8fafc;
+            color: #64748b;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .api-key-input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #cbd5e1;
+            border-radius: 8px;
+            font-size: 14px;
+            margin-top: 15px;
+        }
+
+        .api-key-input:focus {
+            outline: none;
+            border-color: #4f46e5;
+        }
+
+        .status-message {
+            padding: 12px;
+            border-radius: 8px;
+            margin: 15px 0;
+            display: none;
+        }
+
+        .status-success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+        }
+
+        .status-error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎓 AI Рецензент курсовых работ</h1>
+            <p class="subtitle">Загрузите свою курсовую в формате .docx и получите детальный анализ ошибок и рекомендации по улучшению</p>
+        </header>
+
+        <main>
+            <section class="upload-section">
+                <h2>📤 Загрузка работы</h2>
+                <p>Загрузите файл курсовой работы в формате .docx</p>
+                
+                <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+                    <div class="upload-icon">📄</div>
+                    <p><strong>Нажмите для выбора файла</strong></p>
+                    <p>или перетащите его сюда</p>
+                    <p style="color: #64748b; font-size: 14px; margin-top: 10px;">Поддерживается только формат .docx</p>
+                </div>
+
+                <div class="file-info" id="fileInfo">
+                    Файл не выбран
+                </div>
+
+                <input type="file" id="fileInput" class="file-input" accept=".docx" onchange="handleFileSelect(event)">
+                
+                <div class="status-message" id="statusMessage"></div>
+
+                <div class="controls">
+                    <button class="analyze-btn" id="analyzeBtn" onclick="analyzeDocument()" disabled>
+                        <span>🔍</span> Анализировать документ
+                    </button>
+                    <button class="clear-btn" onclick="clearAll()">
+                        <span>🗑️</span> Очистить
+                    </button>
+                </div>
+
+                <div class="loading" id="loading">
+                    <div class="spinner"></div>
+                    <p>Идет анализ документа... Это займет 10-20 секунд</p>
+                    <p style="color: #64748b; font-size: 14px; margin-top: 10px;">Проверяем структуру, расчеты, оформление и содержание</p>
+                </div>
+            </section>
+
+            <section class="result-section">
+                <div class="result-header">
+                    <h2>📊 Результаты проверки</h2>
+                    <div class="score-badge" id="scoreBadge">– / 10</div>
+                </div>
+                
+                <div class="errors-list" id="errorsList">
+                    <div class="error-item success">
+                        <div class="error-category">Готов к проверке</div>
+                        <div class="error-text">Загрузите документ и нажмите "Анализировать" для получения подробного отчета</div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>© 2024 AI Рецензент курсовых работ | Использует Gemini AI для анализа документов</p>
+            <p style="font-size: 12px; margin-top: 10px;">Система проверяет структуру, оформление, расчеты и соответствие ГОСТ</p>
+        </footer>
+    </div>
+
+    <script>
+        // Глобальные переменные
+        let selectedFile = null;
+        const API_KEY = 'AIzaSyBhCO1c4L2yZY1RLRfvh_lYNKr2TgvVzWk'; // Ваш ключ Gemini
+        const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+
+        // Промпт для анализа
+        const ANALYSIS_PROMPT = `Ты — строгий научный рецензент курсовых работ по техническим специальностям. 
+        Проанализируй предоставленную курсовую работу и составь подробный отчет по следующим критериям:
+
+        1. СТРУКТУРНЫЕ ОШИБКИ:
+        - Проверь наличие всех обязательных разделов: титульный лист, содержание, введение, главы, заключение, список литературы, приложения
+        - Соответствие структуры заданию
+        - Логическая последовательность разделов
+
+        2. ОФОРМЛЕНИЕ (по ГОСТ):
+        - Правильность оформления титульного листа
+        - Наличие и правильность нумерации страниц, рисунков, таблиц, формул
+        - Оформление списка литературы (ГОСТ 7.0.100-2018)
+        - Единообразие оформления
+
+        3. СОДЕРЖАТЕЛЬНЫЕ ОШИБКИ:
+        - Наличие и качество введения (актуальность, цель, задачи, объект, предмет, методы)
+        - Глубина теоретической части
+        - Корректность расчетов (если есть)
+        - Соответствие практической части теме
+        - Конкретность выводов в заключении
+        - Научный стиль изложения
+
+        4. РАСЧЕТНО-ТЕХНИЧЕСКИЕ ОШИБКИ (для технических работ):
+        - Наличие всех необходимых расчетных блоков
+        - Единицы измерения
+        - Ссылки на формулы и источники
+        - Логика выбора оборудования/параметров
+
+        ФОРМАТ ОТВЕТА:
+        Начни с общей оценки в формате: "ОЦЕНКА: X/10", где X - число от 1 до 10.
+        Затем для каждой найденной ошибки укажи:
+        [КАТЕГОРИЯ: название категории]
+        [ТИП: ОШИБКА/ПРЕДУПРЕЖДЕНИЕ/РЕКОМЕНДАЦИЯ]
+        [ОПИСАНИЕ: подробное описание проблемы]
+        [ЦИТАТА: фрагмент текста с ошибкой, если возможно]
+        [РЕКОМЕНДАЦИЯ: как исправить]
+        ---
+
+        Документ для анализа:`;
+
+        // Обработчик выбора файла
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                if (file.name.endsWith('.docx')) {
+                    selectedFile = file;
+                    document.getElementById('fileInfo').innerHTML = `
+                        <strong>Выбран файл:</strong> ${file.name}<br>
+                        <strong>Размер:</strong> ${(file.size / 1024).toFixed(2)} KB<br>
+                        <strong>Тип:</strong> ${file.type}
+                    `;
+                    document.getElementById('analyzeBtn').disabled = false;
+                    showStatus('Файл успешно загружен! Нажмите "Анализировать документ"', 'success');
+                } else {
+                    showStatus('Пожалуйста, выберите файл в формате .docx', 'error');
+                }
+            }
+        }
+
+        // Показ статуса
+        function showStatus(message, type) {
+            const statusEl = document.getElementById('statusMessage');
+            statusEl.textContent = message;
+            statusEl.className = 'status-message ' + (type === 'success' ? 'status-success' : 'status-error');
+            statusEl.style.display = 'block';
+            
+            setTimeout(() => {
+                statusEl.style.display = 'none';
+            }, 5000);
+        }
+
+        // Основная функция анализа
+        async function analyzeDocument() {
+            if (!selectedFile) {
+                showStatus('Сначала выберите файл', 'error');
+                return;
+            }
+
+            // Показываем загрузку
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('analyzeBtn').disabled = true;
+            document.getElementById('errorsList').innerHTML = `
+                <div class="error-item">
+                    <div class="error-category">Идет анализ...</div>
+                    <div class="error-text">Пожалуйста, подождите</div>
+                </div>
+            `;
+
+            try {
+                // Читаем текст из DOCX
+                const text = await readDocxFile(selectedFile);
+                
+                // Отправляем в Gemini
+                const analysis = await sendToGemini(text);
+                
+                // Парсим и отображаем результаты
+                displayResults(analysis);
+                
+                showStatus('Анализ завершен успешно!', 'success');
+                
+            } catch (error) {
+                console.error('Ошибка анализа:', error);
+                showStatus('Ошибка при анализе документа: ' + error.message, 'error');
+                
+                document.getElementById('errorsList').innerHTML = `
+                    <div class="error-item">
+                        <div class="error-category">Ошибка анализа</div>
+                        <div class="error-text">${error.message}</div>
+                    </div>
+                `;
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('analyzeBtn').disabled = false;
+            }
+        }
+
+        // Чтение DOCX файла
+        async function readDocxFile(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    const arrayBuffer = e.target.result;
+                    
+                    // Простая обработка DOCX (в реальности нужна библиотека)
+                    // Здесь имитируем чтение текста
+                    const decoder = new TextDecoder('utf-8');
+                    let text = decoder.decode(arrayBuffer);
+                    
+                    // Ограничиваем текст для API
+                    text = text.substring(0, 30000);
+                    
+                    resolve(text);
+                };
+                
+                reader.onerror = reject;
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
+        // Отправка в Gemini API
+        async function sendToGemini(text) {
+            const prompt = ANALYSIS_PROMPT + '\n\n' + text.substring(0, 30000);
+            
+            const response = await fetch(`${GEMINI_API_URL}?key=${API_KEY}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    contents: [{
+                        parts: [{
+                            text: prompt
+                        }]
+                    }],
+                    generationConfig: {
+                        temperature: 0.1,
+                        maxOutputTokens: 2000,
+                    }
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`API ошибка: ${response.status}`);
+            }
+
+            const data = await response.json();
+            
+            if (data.candidates && data.candidates[0].content.parts[0].text) {
+                return data.candidates[0].content.parts[0].text;
+            } else {
+                throw new Error('Некорректный ответ от API');
+            }
+        }
+
+        // Отображение результатов
+        function displayResults(analysisText) {
+            const errorsList = document.getElementById('errorsList');
+            errorsList.innerHTML = '';
+            
+            // Извлекаем оценку
+            const scoreMatch = analysisText.match(/ОЦЕНКА:\s*(\d+(?:\.\d+)?)\/10/);
+            if (scoreMatch) {
+                const score = scoreMatch[1];
+                document.getElementById('scoreBadge').textContent = `${score}/10`;
+            }
+            
+            // Парсим структурированные ошибки
+            const sections = analysisText.split('---');
+            
+            sections.forEach(section => {
+                if (section.trim()) {
+                    const categoryMatch = section.match(/\[КАТЕГОРИЯ:\s*(.+?)\]/);
+                    const typeMatch = section.match(/\[ТИП:\s*(.+?)\]/);
+                    const descMatch = section.match(/\[ОПИСАНИЕ:\s*([\s\S]+?)(?=\[ЦИТАТА:|\[РЕКОМЕНДАЦИЯ:|$)/);
+                    const quoteMatch = section.match(/\[ЦИТАТА:\s*([\s\S]+?)(?=\[РЕКОМЕНДАЦИЯ:|$)/);
+                    const recMatch = section.match(/\[РЕКОМЕНДАЦИЯ:\s*([\s\S]+?)(?=\[КАТЕГОРИЯ:|$)/);
+                    
+                    if (descMatch) {
+                        const errorItem = document.createElement('div');
+                        
+                        let typeClass = 'error-item';
+                        if (typeMatch) {
+                            if (typeMatch[1].includes('ОШИБКА')) {
+                                typeClass += '';
+                            } else if (typeMatch[1].includes('ПРЕДУПРЕЖДЕНИЕ')) {
+                                typeClass += ' warning';
+                            } else if (typeMatch[1].includes('РЕКОМЕНДАЦИЯ')) {
+                                typeClass += ' success';
+                            }
+                        }
+                        
+                        errorItem.className = typeClass;
+                        
+                        let html = '';
+                        if (categoryMatch) {
+                            html += `<div class="error-category">${categoryMatch[1]}</div>`;
+                        }
+                        
+                        html += `<div class="error-text">${descMatch[1].trim()}</div>`;
+                        
+                        if (quoteMatch) {
+                            html += `<div class="error-quote">${quoteMatch[1].trim()}</div>`;
+                        }
+                        
+                        if (recMatch) {
+                            html += `<div class="recommendation">💡 Рекомендация: ${recMatch[1].trim()}</div>`;
+                        }
+                        
+                        errorItem.innerHTML = html;
+                        errorsList.appendChild(errorItem);
+                    }
+                }
+            });
+            
+            // Если не нашли структурированных ошибок, показываем весь текст
+            if (errorsList.children.length === 0) {
+                const errorItem = document.creat
